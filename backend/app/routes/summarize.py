@@ -1,23 +1,23 @@
 from fastapi import APIRouter, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from app.services.pdf_service import extract_pdf_data
-from app.services.summary_service import summarize_text
+from app.services.chunk_service import chunk_text
+from app.services.ollama_service import stream_summary
 
 router = APIRouter()
 
-@router.post("/summarize")
-async def summarize_pdf(
+@router.post("/summarize-stream")
+async def summarize_pdf_stream(
     file: UploadFile = File(...),
-    mode: str = Form("brief")
+    mode: str = Form("brief"),
+    model: str = Form("tinyllama")
 ):
     data = extract_pdf_data(file)
 
-    final_summary = summarize_text(
-        text=data["text"],
-        mode=mode
-    )
+    chunks = chunk_text(data["text"])
 
-    return {
-        "pages": data["page_count"],
-        "mode": mode,
-        "summary": final_summary
-    }
+    first_chunk = chunks[0]
+
+    generator = stream_summary(first_chunk, mode=mode, model=model)
+
+    return StreamingResponse(generator, media_type="text/plain")
